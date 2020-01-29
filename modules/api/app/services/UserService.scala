@@ -114,9 +114,7 @@ class UserService @Inject()(
           signUpData.email,
           signUpData.roles,
 
-          activated = false,
-          avatarURL = None,
-          phoneNumber = None,
+
         )
         for {
           avatar <- avatarService.retrieveURL(signUpData.email)

@@ -125,7 +125,6 @@ case class UserController @Inject()(
             fullName = computeFullName(data.firstName, data.lastName),
             email = data.email.toLowerCase,
             roles = newUserRoles,
-            activated = false // user need to verify account with verificationCode sent by email
           )
 
           for {
@@ -145,7 +144,6 @@ case class UserController @Inject()(
             Ok(Json.obj(
               "token" -> token,
               "userId" -> user._id.get.stringify,
-              "activated" -> user.activated
             ))
           }
       }
@@ -179,7 +177,6 @@ case class UserController @Inject()(
               Ok(Json.obj(
                 "token" -> token,
                 "userId" -> user._id.get.stringify,
-                "activated" -> user.activated,
               ))
             }
           }
@@ -228,104 +225,7 @@ case class UserController @Inject()(
     }
   }
 
-  def resetPassword() = Action.async(parse.json) { implicit request =>
-    request.body.validate[ResetPasswordForm.Data].map { data =>
-      val loginInfo = LoginInfo(CredentialsProvider.ID, data.email.toLowerCase)
-      userService.retrieve(loginInfo).flatMap {
-        case None =>
-          Future.successful(BadRequest(Json.obj("message" -> Messages("Aucun compte n’existe avec cette adresse email"))))
 
-        case Some(user) =>
-          for {
-            avatar <- avatarService.retrieveURL(data.email.toLowerCase)
-
-            authenticator <- silhouette.env.authenticatorService.create(loginInfo)
-
-            token <- silhouette.env.authenticatorService.init(authenticator)
-            result <- silhouette.env.authenticatorService.renew(authenticator, Ok("success"))
-
-
-          } yield {
-            Ok(Json.obj("token" -> token))
-          }
-      }
-    }.recoverTotal {
-      case error =>
-        Future.successful(Unauthorized(Json.obj("message" -> Messages("invalid.data"))))
-    }
-  }
-
-  def newPassword = SecuredAction(WithService(userWrite)).async(parse.json) { implicit request =>
-
-    request.body.validate[NewPasswordForm.Data].map { data =>
-      val loginInfo = LoginInfo(CredentialsProvider.ID, data.email.toLowerCase)
-      val authInfo: PasswordInfo = passwordHasher.hash(data.newPassword)
-
-      userService.retrieve(loginInfo).flatMap {
-        case Some(user) =>
-          for {
-
-            _ <- authInfoRepository.update(loginInfo, authInfo)
-            authenticator <- silhouette.env.authenticatorService.create(loginInfo)
-            result <- silhouette.env.authenticatorService.renew(authenticator, Ok("success"))
-          } yield {
-
-            result
-          }
-      }
-    }.recoverTotal {
-      case error =>
-        Future.successful(BadRequest(Json.obj("message" -> "error changing user password")))
-    }
-  }
-
-  /**
-    * Verify user account with verificationCode
-    *
-    * @param verificationCode
-    * @param email
-    * @return
-    */
-  def verifyAccount(email: String) = SecuredAction(WithService(userWrite)).async(parse.json) { request =>
-    val loginInfo = LoginInfo(CredentialsProvider.ID, email.toLowerCase)
-    userService.retrieve(loginInfo).flatMap {
-
-      case Some(user) =>
-        for {
-
-          _ <- userService.updateUser(user._id.get.stringify, user.copy(activated = true, roles = activatedAccount))
-
-
-        } yield {
-
-          Ok(Json.obj("user" -> user.copy(activated = true)))
-
-        }
-
-    }
-  }
-
-  def resendVerificationEmail(email: String) = Action.async(parse.json) { implicit request =>
-    val loginInfo = LoginInfo(CredentialsProvider.ID, email.toLowerCase)
-    userService.retrieve(loginInfo).flatMap {
-
-      case Some(user) =>
-        for {
-          avatar <- avatarService.retrieveURL(email.toLowerCase)
-
-          authenticator <- silhouette.env.authenticatorService.create(loginInfo)
-
-          token <- silhouette.env.authenticatorService.init(authenticator)
-          result <- silhouette.env.authenticatorService.renew(authenticator, Ok("success"))
-
-
-        } yield {
-          Ok("email was sent Successfully")
-
-        }
-
-    }
-  }
 
   def changeEmail() = SecuredAction(WithService(userWrite)).async(parse.json) { implicit request =>
     request.body.validate[ChangeEmailForm.Data].map { data =>
@@ -349,7 +249,7 @@ case class UserController @Inject()(
                   _ <- mongoDBAuthInfoRepository.remove(LoginInfo(CredentialsProvider.ID, data.currentEmail.toLowerCase))
 
                   _ <- avatarService.retrieveURL(data.newEmail)
-                  _ <- userService.updateUser(user._id.get.stringify, user.copy(activated = false, loginInfo = loginInfo, email = data.newEmail))
+                  _ <- userService.updateUser(user._id.get.stringify, user.copy( loginInfo = loginInfo, email = data.newEmail))
 
                   authInfo <- authInfoRepository.add(loginInfo, authInfo)
                   authenticator <- silhouette.env.authenticatorService.create(loginInfo)

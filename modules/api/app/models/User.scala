@@ -20,7 +20,6 @@ case class User(
     fullName: Option[String],
     email: String,
     roles: Seq[String] = Seq.empty[String],
-    activated: Boolean = false,
     avatarURL: Option[String] = None,
     phoneNumber: Option[String] = None,
     creationDate: Option[DateTime] = Some(DateTime.now()),
