@@ -130,7 +130,7 @@ case class UserController @Inject()(
           for {
 
             avatar <- avatarService.retrieveURL(data.email.toLowerCase)
-            _ <- userService.newUser(user.copy(avatarURL = avatar), Some(data))
+            _ <- userService.newUser(user, Some(data))
             authInfo <- authInfoRepository.add(loginInfo, authInfo)
             authenticator <- silhouette.env.authenticatorService.create(loginInfo)
             token <- silhouette.env.authenticatorService.init(authenticator)
